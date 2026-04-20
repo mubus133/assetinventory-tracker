@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -9,8 +9,29 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await api.auth.loginWithGoogle();
+      // Navigation handled by useEffect
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError('Google Login failed. Please ensure your institutional account is authorized.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,11 +39,21 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const { token, user } = await api.auth.login({ email, password });
-      login(token, user);
-      navigate('/');
-    } catch (err) {
-      setError('Invalid email or password. Please try again.');
+      await api.auth.login({ email, password });
+      // Navigation handled by useEffect
+    } catch (err: any) {
+      console.error('Login Error:', err);
+      let message = 'Invalid email or password. Please try again.';
+      if (err.message) {
+        if (err.message.includes('auth/invalid-credential')) {
+          message = 'Invalid email or password. Check your entries and try again.';
+        } else if (err.message.includes('auth/user-disabled')) {
+          message = 'This account has been disabled. Please contact the administrator.';
+        } else {
+          message = err.message;
+        }
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -87,6 +118,22 @@ export const LoginPage: React.FC = () => {
               {loading ? <Loader2 className="animate-spin" size={18} /> : 'Access Terminal'}
             </button>
           </form>
+
+          <div className="mt-6 flex flex-col gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"></div></div>
+              <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-black"><span className="bg-bg-card px-4 text-text-secondary">Or Secure Login via</span></div>
+            </div>
+
+            <button
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full bg-white hover:bg-slate-50 text-slate-900 font-bold py-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-3 disabled:opacity-70 uppercase text-[10px] tracking-widest border border-slate-200"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" referrerPolicy="no-referrer" />
+              Sign in with institutional Google Workspace
+            </button>
+          </div>
 
           <div className="mt-10 pt-6 border-t border-border text-center">
             <p className="text-[10px] text-text-secondary uppercase tracking-[0.2em] font-bold">

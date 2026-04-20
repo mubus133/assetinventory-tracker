@@ -12,7 +12,9 @@ import {
   ClipboardList,
   Menu,
   X,
-  ChevronRight
+  Settings,
+  ChevronRight,
+  Wrench
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { clsx, type ClassValue } from 'clsx';
@@ -40,10 +42,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['Admin', 'Staff', 'Store Officer', 'Management'] },
     { name: 'Asset Inventory', path: '/assets', icon: Package, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
+    { name: 'Maintenance', path: '/maintenance', icon: Wrench, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
     { name: 'Allocations', path: '/allocations', icon: ArrowLeftRight, roles: ['Admin', 'Store Officer'] },
     { name: 'Return Log', path: '/return', icon: ArrowLeftRight, roles: ['Admin', 'Store Officer'] },
     { name: 'Reporting', path: '/reports', icon: BarChart3, roles: ['Admin', 'Management'] },
     { name: 'User Management', path: '/users', icon: Users, roles: ['Admin'] },
+    { name: 'System Config', path: '/settings', icon: Settings, roles: ['Admin'] },
     { name: 'Audit Trail', path: '/audit', icon: ClipboardList, roles: ['Admin'] },
   ];
 

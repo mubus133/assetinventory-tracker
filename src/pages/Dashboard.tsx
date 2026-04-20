@@ -28,21 +28,43 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    let unsubscribeAssets: () => void;
+    let unsubscribeLogs: () => void;
+
+    const setupSubscriptions = async () => {
       try {
+        // Auto-seed basic data (ICT dept, Laptops, etc.) if database is empty
+        await api.metadata.seedDatabase();
+
+        // Initial fetch for immediate display
         const [assetsData, logsData] = await Promise.all([
           api.assets.list(),
           api.metadata.auditLogs()
         ]);
         setAssets(assetsData);
-        setAuditLogs(logsData.slice(-5).reverse());
+        setAuditLogs(logsData.slice(0, 5));
+        setLoading(false);
+
+        // Real-time subscriptions
+        unsubscribeAssets = api.assets.subscribe((updatedAssets) => {
+          setAssets(updatedAssets);
+        }, (err) => console.error('Asset subscription error:', err));
+
+        unsubscribeLogs = api.metadata.subscribeLogs((updatedLogs) => {
+          setAuditLogs(updatedLogs.slice(0, 5));
+        }, (err) => console.error('Log subscription error:', err));
       } catch (err) {
         console.error('Failed to fetch dashboard data', err);
-      } finally {
         setLoading(false);
       }
     };
-    fetchData();
+
+    setupSubscriptions();
+
+    return () => {
+      if (unsubscribeAssets) unsubscribeAssets();
+      if (unsubscribeLogs) unsubscribeLogs();
+    };
   }, []);
 
   const stats = [

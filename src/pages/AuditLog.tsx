@@ -16,17 +16,30 @@ export const AuditLog: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const fetchLogs = async () => {
+    let unsubscribe: () => void;
+
+    const setupSubscription = async () => {
+      setLoading(true);
       try {
-        const data = await api.metadata.auditLogs();
-        setLogs(data.reverse());
+        // subscribeLogs already orders by timestamp desc
+        unsubscribe = api.metadata.subscribeLogs((data) => {
+          setLogs(data);
+          setLoading(false);
+        }, (err) => {
+          console.error('Audit log subscription error:', err);
+          setLoading(false);
+        });
       } catch (err) {
-        console.error('Failed to fetch audit logs', err);
-      } finally {
+        console.error('Failed to setup audit log subscription', err);
         setLoading(false);
       }
     };
-    fetchLogs();
+
+    setupSubscription();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const filteredLogs = logs.filter(log => 

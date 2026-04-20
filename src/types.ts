@@ -16,15 +16,19 @@ export interface User {
 
 export interface Department {
   id: string;
+  customId?: string;
   name: string;
 }
 
 export interface Category {
   id: string;
+  customId?: string;
   name: string;
 }
 
 export type AssetStatus = 'Available' | 'Allocated' | 'Maintenance' | 'Disposed';
+
+export type AssetCondition = 'Good' | 'Fair' | 'Damaged' | 'Lost';
 
 export interface Asset {
   id: string;
@@ -33,6 +37,8 @@ export interface Asset {
   categoryId: string;
   departmentId: string;
   status: AssetStatus;
+  condition?: AssetCondition;
+  lastMaintenanceDate?: string;
   purchaseDate: string;
   description: string;
   createdAt: string;
@@ -46,6 +52,8 @@ export interface Allocation {
   returnDate?: string;
   status: 'Active' | 'Returned';
   notes: string;
+  returnCondition?: 'Good' | 'Fair' | 'Damaged' | 'Lost';
+  returnNotes?: string;
 }
 
 export interface AuditLog {

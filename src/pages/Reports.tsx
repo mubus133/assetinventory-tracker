@@ -33,23 +33,34 @@ export const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    let unsubscribeAssets: () => void;
+
+    const setupSubscriptions = async () => {
+      setLoading(true);
       try {
-        const [assetsData, catsData, deptsData] = await Promise.all([
-          api.assets.list(),
+        const [catsData, deptsData, assetsData] = await Promise.all([
           api.metadata.categories(),
-          api.metadata.departments()
+          api.metadata.departments(),
+          api.assets.list()
         ]);
-        setAssets(assetsData);
         setCategories(catsData);
         setDepartments(deptsData);
+        setAssets(assetsData);
+
+        // Subscriptions
+        unsubscribeAssets = api.assets.subscribe(setAssets, (err) => console.error('Asset subscription error:', err));
+        setLoading(false);
       } catch (err) {
         console.error('Failed to fetch report data', err);
-      } finally {
         setLoading(false);
       }
     };
-    fetchData();
+
+    setupSubscriptions();
+
+    return () => {
+      if (unsubscribeAssets) unsubscribeAssets();
+    };
   }, []);
 
   const handleExportPDF = () => {

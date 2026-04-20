@@ -7,8 +7,10 @@ import {
   CheckCircle2, 
   XCircle,
   Search,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import { Asset, User as UserType, Allocation } from '../types';
 
@@ -16,6 +18,7 @@ export const AssetAllocation: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Form State
@@ -25,34 +28,67 @@ export const AssetAllocation: React.FC = () => {
     notes: ''
   });
 
-  const fetchData = async () => {
-    try {
-      const [assetsData, usersData] = await Promise.all([
-        api.assets.list(),
-        api.metadata.users()
-      ]);
-      setAssets(assetsData);
-      setUsers(usersData);
-    } catch (err) {
-      console.error('Failed to fetch allocation data', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
+    let unsubscribeAssets: () => void;
+    let unsubscribeUsers: () => void;
+    let unsubscribeDeps: () => void;
+
+    const setupSubscriptions = async () => {
+      setLoading(true);
+      try {
+        // Initial fetch
+        const [assetsData, usersData] = await Promise.all([
+          api.assets.list(),
+          api.metadata.users()
+        ]);
+        setAssets(assetsData);
+        setUsers(usersData);
+        setLoading(false);
+
+        // Subscriptions
+        unsubscribeAssets = api.assets.subscribe(setAssets, (err) => console.error('Asset subscription error:', err));
+        unsubscribeUsers = api.metadata.subscribeUsers(setUsers, (err) => console.error('User subscription error:', err));
+        unsubscribeDeps = api.metadata.subscribeDepartments(() => {}, (err) => console.error(err)); // Just to keep connected
+
+      } catch (err) {
+        console.error('Failed to fetch allocation data', err);
+        setLoading(false);
+      }
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      if (unsubscribeAssets) unsubscribeAssets();
+      if (unsubscribeUsers) unsubscribeUsers();
+      if (unsubscribeDeps) unsubscribeDeps();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
       await api.allocations.create(formData);
+      // Need to update asset status in the same flow or via rules/triggers
+      // For simplicity in this demo, we update the asset status here
+      await api.assets.update(formData.assetId, { status: 'Allocated' });
+      
+      toast.success('Asset allocated successfully');
       setIsModalOpen(false);
-      fetchData();
       setFormData({ assetId: '', userId: '', notes: '' });
-    } catch (err) {
-      alert('Failed to allocate asset');
+    } catch (err: any) {
+      console.error('Allocation Error:', err);
+      let message = 'Failed to allocate asset';
+      try {
+        const parsed = JSON.parse(err.message);
+        message = parsed.error;
+      } catch (e) {
+        message = err.message || message;
+      }
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -171,7 +207,12 @@ export const AssetAllocation: React.FC = () => {
           <div className="bg-bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-white/5">
               <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">New Asset Allocation</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-text-secondary hover:text-text-primary"><XCircle size={20} /></button>
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="text-text-secondary hover:text-text-primary"
+              >
+                <X size={20} />
+              </button>
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -214,10 +255,12 @@ export const AssetAllocation: React.FC = () => {
 
               <div className="flex flex-col gap-3 pt-4 border-t border-border">
                 <button 
+                  disabled={submitting}
                   type="submit"
-                  className="btn-accent w-full py-3"
+                  className="btn-accent w-full py-3 flex items-center justify-center gap-2"
                 >
-                  Confirm Allocation
+                  {submitting && <Loader2 size={16} className="animate-spin" />}
+                  {submitting ? 'Allocating...' : 'Confirm Allocation'}
                 </button>
                 <button 
                   type="button"

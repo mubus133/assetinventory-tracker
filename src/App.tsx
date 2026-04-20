@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
@@ -10,9 +11,20 @@ import { AssetReturn } from './pages/AssetReturn';
 import { Reports } from './pages/Reports';
 import { UserManagement } from './pages/UserManagement';
 import { AuditLog } from './pages/AuditLog';
+import { SystemSettings } from './pages/SystemSettings';
+import { Maintenance } from './pages/Maintenance';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-bg-deep flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+      </div>
+    );
+  }
+  
   if (!isAuthenticated) return <Navigate to="/login" />;
   return <Layout>{children}</Layout>;
 };
@@ -20,6 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster position="top-right" reverseOrder={false} />
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -48,6 +61,12 @@ export default function App() {
             </ProtectedRoute>
           } />
 
+          <Route path="/maintenance" element={
+            <ProtectedRoute>
+              <Maintenance />
+            </ProtectedRoute>
+          } />
+
           <Route path="/search" element={
             <ProtectedRoute>
               <AssetInventory /> {/* Search is integrated into inventory for this demo */}
@@ -69,6 +88,12 @@ export default function App() {
           <Route path="/audit" element={
             <ProtectedRoute>
               <AuditLog />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <SystemSettings />
             </ProtectedRoute>
           } />
 

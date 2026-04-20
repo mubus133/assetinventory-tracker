@@ -13,6 +13,7 @@ import {
   X,
   Loader2
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import { User, Department } from '../types';
 
@@ -30,30 +31,42 @@ export const UserManagement: React.FC = () => {
     email: '',
     role: 'Staff' as any,
     departmentId: '',
+    status: 'Active' as 'Active' | 'Inactive',
     password: ''
   });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [usersData, deptsData] = await Promise.all([
-        api.metadata.users(),
-        api.metadata.departments()
-      ]);
-      setUsers(usersData);
-      setDepartments(deptsData);
-      if (deptsData.length > 0 && !formData.departmentId) {
-        setFormData(prev => ({ ...prev, departmentId: deptsData[0].id }));
-      }
-    } catch (err) {
-      console.error('Failed to fetch user data', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
+    let unsubscribeUsers: () => void;
+
+    const setupSubscriptions = async () => {
+      setLoading(true);
+      try {
+        const deptsData = await api.metadata.departments();
+        setDepartments(deptsData);
+        if (deptsData.length > 0 && !formData.departmentId) {
+          setFormData(prev => ({ ...prev, departmentId: deptsData[0].id }));
+        }
+
+        // Initial fetch
+        const initialUsers = await api.metadata.users();
+        setUsers(initialUsers);
+        setLoading(false);
+
+        // Subscription
+        unsubscribeUsers = api.metadata.subscribeUsers((updatedUsers) => {
+          setUsers(updatedUsers);
+        }, (err) => console.error('User subscription error:', err));
+      } catch (err) {
+        console.error('Failed to fetch user data', err);
+        setLoading(false);
+      }
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      if (unsubscribeUsers) unsubscribeUsers();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,8 +75,10 @@ export const UserManagement: React.FC = () => {
     try {
       if (editingId) {
         await api.metadata.updateUser(editingId, formData);
+        toast.success('Personnel profile updated');
       } else {
         await api.metadata.createUser(formData);
+        toast.success('New personnel registered');
       }
       setIsModalOpen(false);
       setEditingId(null);
@@ -72,11 +87,23 @@ export const UserManagement: React.FC = () => {
         email: '',
         role: 'Staff',
         departmentId: departments[0]?.id || '',
+        status: 'Active',
         password: ''
       });
-      fetchData();
-    } catch (err) {
-      alert('Failed to save user');
+    } catch (err: any) {
+      console.error('Registration Error:', err);
+      let message = 'Failed to save user';
+      
+      try {
+        // Try to parse the structured error from handleFirestoreError
+        const parsed = JSON.parse(err.message);
+        message = parsed.error;
+      } catch (e) {
+        // Fallback to the raw error message
+        message = err.message || message;
+      }
+      
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -89,6 +116,7 @@ export const UserManagement: React.FC = () => {
       email: user.email,
       role: user.role,
       departmentId: user.departmentId,
+      status: user.status,
       password: '' // Don't pre-fill password
     });
     setIsModalOpen(true);
@@ -104,9 +132,9 @@ export const UserManagement: React.FC = () => {
     setSubmitting(true);
     try {
       await api.metadata.deleteUser(userToDelete);
+      toast.success('Personnel record removed');
       setIsDeleteModalOpen(false);
       setUserToDelete(null);
-      fetchData();
     } catch (err) {
       alert('Failed to delete user');
     } finally {
@@ -208,18 +236,31 @@ export const UserManagement: React.FC = () => {
                   </select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">
-                  {editingId ? 'New Password (leave blank to keep current)' : 'Initial Password'}
-                </label>
-                <input 
-                  required={!editingId}
-                  type="password"
-                  value={formData.password}
-                  onChange={e => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full bg-bg-deep border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:border-accent outline-none transition-all"
-                  placeholder="••••••••"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">Account Status</label>
+                  <select 
+                    value={formData.status}
+                    onChange={e => setFormData({ ...formData, status: e.target.value as any })}
+                    className="w-full bg-bg-deep border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:border-accent outline-none transition-all"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">
+                    {editingId ? 'New Password' : 'Initial Password'}
+                  </label>
+                  <input 
+                    required={!editingId}
+                    type="password"
+                    value={formData.password}
+                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full bg-bg-deep border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:border-accent outline-none transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
               </div>
               <div className="pt-4">
                 <button 

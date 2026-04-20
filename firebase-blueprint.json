@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the asset management system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["Admin", "Staff", "Store Officer", "Department Staff", "Inventory Officer", "Management"] },
+        "departmentId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "role", "departmentId", "status", "createdAt"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "Represents an inventory asset.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "assetId": { "type": "string", "description": "Unique institutional ID" },
+        "name": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "departmentId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Available", "Allocated", "Maintenance", "Disposed"] },
+        "condition": { "type": "string", "enum": ["Good", "Fair", "Damaged", "Lost"] },
+        "lastMaintenanceDate": { "type": "string", "format": "date-time" },
+        "purchaseDate": { "type": "string", "format": "date" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "assetId", "name", "categoryId", "departmentId", "status", "purchaseDate", "createdAt"]
+    },
+    "Allocation": {
+      "title": "Allocation",
+      "description": "Represents an asset allocation record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "assetId": { "type": "string" },
+        "userId": { "type": "string" },
+        "allocationDate": { "type": "string", "format": "date-time" },
+        "returnDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Active", "Returned"] },
+        "notes": { "type": "string" },
+        "returnCondition": { "type": "string", "enum": ["Good", "Fair", "Damaged", "Lost"] },
+        "returnNotes": { "type": "string" }
+      },
+      "required": ["id", "assetId", "userId", "allocationDate", "status"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Represents a university department.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Represents an asset category.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System activity logs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userName", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": { "$ref": "User" },
+      "description": "User collection for authentication and profile data."
+    },
+    "assets": {
+      "schema": { "$ref": "Asset" },
+      "description": "Asset inventory storage."
+    },
+    "allocations": {
+      "schema": { "$ref": "Allocation" },
+      "description": "Records of assets assigned to individuals."
+    },
+    "departments": {
+      "schema": { "$ref": "Department" },
+      "description": "Academic and administrative departments."
+    },
+    "categories": {
+      "schema": { "$ref": "Category" },
+      "description": "Categorization system for inventory."
+    },
+    "auditLogs": {
+      "schema": { "$ref": "AuditLog" },
+      "description": "Immutable system logs."
+    }
+  }
+}

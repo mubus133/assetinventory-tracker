@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Loader2
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import { Asset, User as UserType, Allocation } from '../types';
 
@@ -20,35 +21,61 @@ export const AssetReturn: React.FC = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [assetToReturn, setAssetToReturn] = useState<Asset | null>(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [assetsData, usersData, logsData, allocationsData] = await Promise.all([
-        api.assets.list(),
-        api.metadata.users(),
-        api.metadata.auditLogs(),
-        api.allocations.list()
-      ]);
-      setAssets(assetsData);
-      setUsers(usersData);
-      setAllocations(allocationsData);
-      setAuditLogs(logsData.filter((l: any) => l.action === 'Asset Allocation' || l.action === 'Asset Return').reverse());
-    } catch (err) {
-      console.error('Failed to fetch return data', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [returnCondition, setReturnCondition] = useState<'Good' | 'Fair' | 'Damaged' | 'Lost'>('Good');
+  const [returnNotes, setReturnNotes] = useState('');
 
   useEffect(() => {
-    fetchData();
+    let unsubscribeAssets: () => void;
+    let unsubscribeUsers: () => void;
+    let unsubscribeAllocations: () => void;
+    let unsubscribeLogs: () => void;
+
+    const setupSubscriptions = async () => {
+      setLoading(true);
+      try {
+        // Initial fetches
+        const [assetsData, usersData, logsData, allocationsData] = await Promise.all([
+          api.assets.list(),
+          api.metadata.users(),
+          api.metadata.auditLogs(),
+          api.allocations.list()
+        ]);
+        setAssets(assetsData);
+        setUsers(usersData);
+        setAllocations(allocationsData);
+        setAuditLogs(logsData.filter((l: any) => l.action === 'Asset Allocation' || l.action === 'Asset Return').reverse());
+        setLoading(false);
+
+        // Subscriptions
+        unsubscribeAssets = api.assets.subscribe(setAssets, (err) => console.error('Asset subscription error:', err));
+        unsubscribeUsers = api.metadata.subscribeUsers(setUsers, (err) => console.error('User subscription error:', err));
+        unsubscribeAllocations = api.allocations.subscribe(setAllocations, (err) => console.error('Allocation subscription error:', err));
+        unsubscribeLogs = api.metadata.subscribeLogs((updatedLogs) => {
+          setAuditLogs(updatedLogs.filter((l: any) => l.action === 'Asset Allocation' || l.action === 'Asset Return'));
+        }, (err) => console.error('Log subscription error:', err));
+
+      } catch (err) {
+        console.error('Failed to fetch return data', err);
+        setLoading(false);
+      }
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      if (unsubscribeAssets) unsubscribeAssets();
+      if (unsubscribeUsers) unsubscribeUsers();
+      if (unsubscribeAllocations) unsubscribeAllocations();
+      if (unsubscribeLogs) unsubscribeLogs();
+    };
   }, []);
 
   const allocatedAssets = assets.filter(a => a.status === 'Allocated');
 
   const handleReturnClick = (asset: Asset) => {
     setAssetToReturn(asset);
+    setReturnCondition('Good');
+    setReturnNotes('');
     setIsConfirmModalOpen(true);
   };
 
@@ -59,7 +86,7 @@ export const AssetReturn: React.FC = () => {
     const activeAllocation = allocations.find(al => al.assetId === assetToReturn.id && al.status === 'Active');
     
     if (!activeAllocation) {
-      alert('Could not find active allocation record for this asset.');
+      toast.error('Could not find active allocation record.');
       setIsConfirmModalOpen(false);
       setAssetToReturn(null);
       return;
@@ -67,12 +94,34 @@ export const AssetReturn: React.FC = () => {
 
     setProcessingId(assetToReturn.id);
     try {
-      await api.allocations.return(activeAllocation.id);
-      await fetchData();
+      await api.allocations.return(activeAllocation.id, {
+        condition: returnCondition,
+        notes: returnNotes
+      });
+      
+      // Update asset status and condition based on return
+      const newStatus = (returnCondition === 'Damaged' || returnCondition === 'Lost') 
+        ? 'Maintenance' 
+        : 'Available';
+        
+      await api.assets.update(assetToReturn.id, { 
+        status: newStatus,
+        condition: returnCondition
+      });
+      
+      toast.success(returnCondition === 'Lost' ? 'Asset reported as LOST' : 'Asset return processed successfully');
       setIsConfirmModalOpen(false);
       setAssetToReturn(null);
-    } catch (err) {
-      alert('Failed to process return.');
+    } catch (err: any) {
+      console.error('Return Error:', err);
+      let message = 'Failed to process return';
+      try {
+        const parsed = JSON.parse(err.message);
+        message = parsed.error;
+      } catch (e) {
+        message = err.message || message;
+      }
+      toast.error(message);
     } finally {
       setProcessingId(null);
     }
@@ -171,33 +220,67 @@ export const AssetReturn: React.FC = () => {
       {/* Return Confirmation Modal */}
       {isConfirmModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-bg-deep/90 backdrop-blur-md">
-          <div className="bg-bg-card border border-border w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 text-center space-y-4">
-              <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto text-accent">
-                <RotateCcw size={32} />
+          <div className="bg-bg-card border border-border w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
+                  <RotateCcw size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-primary">Asset Return & Condition Report</h3>
+                  <p className="text-sm text-text-secondary mt-1">
+                    Processing return for: <span className="text-text-primary font-bold">{assetToReturn?.name}</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-text-primary">Confirm Asset Return</h3>
-                <p className="text-sm text-text-secondary mt-1">
-                  Are you sure you want to process the return of <span className="text-text-primary font-bold">{assetToReturn?.name}</span>? This will update the inventory status to <span className="text-emerald-400 font-bold">AVAILABLE</span>.
-                </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-3">Item Condition</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {(['Good', 'Fair', 'Damaged', 'Lost'] as const).map((condition) => (
+                      <button
+                        key={condition}
+                        onClick={() => setReturnCondition(condition)}
+                        className={`px-4 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                          returnCondition === condition 
+                            ? 'bg-accent border-accent text-black shadow-lg shadow-accent/20' 
+                            : 'bg-bg-deep border-border text-text-secondary hover:border-accent/40'
+                        }`}
+                      >
+                        {condition}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-2">Inspection Notes / Damage Details</label>
+                  <textarea
+                    value={returnNotes}
+                    onChange={(e) => setReturnNotes(e.target.value)}
+                    placeholder="Describe any damage, missing parts, or reason for loss..."
+                    className="w-full h-32 px-4 py-3 bg-bg-deep border border-border rounded-xl focus:border-accent outline-none transition-all text-sm text-text-primary placeholder:text-text-secondary/30 resize-none"
+                  />
+                </div>
               </div>
-              <div className="flex gap-3 pt-2">
+
+              <div className="flex gap-4 pt-4 border-t border-border">
                 <button 
                   onClick={() => {
                     setIsConfirmModalOpen(false);
                     setAssetToReturn(null);
                   }}
-                  className="flex-1 px-4 py-2.5 bg-bg-deep border border-border rounded-xl text-xs font-bold text-text-secondary uppercase tracking-widest hover:text-text-primary transition-all"
+                  className="flex-1 px-4 py-3 bg-bg-deep border border-border rounded-xl text-xs font-bold text-text-secondary uppercase tracking-widest hover:text-text-primary transition-all"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={confirmReturn}
                   disabled={processingId !== null}
-                  className="flex-1 px-4 py-2.5 bg-accent text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-accent/80 transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/20"
+                  className="flex-1 px-4 py-3 bg-accent text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-accent/80 transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/20 disabled:opacity-50"
                 >
-                  {processingId !== null ? <Loader2 size={14} className="animate-spin" /> : 'Confirm'}
+                  {processingId !== null ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Return'}
                 </button>
               </div>
             </div>
