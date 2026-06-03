@@ -28,7 +28,7 @@ import {
 } from 'firebase/auth';
 import { db, auth } from '../firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Asset, Allocation, User, Department, Category, AuditLog } from '../types';
+import { Asset, Allocation, User, Department, Category, AuditLog, AssetRequest } from '../types';
 
 const MASTER_ADMIN_EMAIL = 'mubarak@crescent.edu.ng';
 
@@ -568,6 +568,126 @@ export const api = {
         await addDoc(collection(db, 'categories'), { name: 'Laptops' });
         await addDoc(collection(db, 'categories'), { name: 'Printers' });
         await addDoc(collection(db, 'categories'), { name: 'Networking' });
+      }
+    }
+  },
+  requests: {
+    list: async (): Promise<AssetRequest[]> => {
+      const path = 'assetRequests';
+      try {
+        const q = query(collection(db, path), orderBy('createdAt', 'desc'));
+        const sn = await getDocs(q);
+        return sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as AssetRequest[];
+      } catch (error) {
+        return handleFirestoreError(error, OperationType.LIST, path);
+      }
+    },
+    subscribe: (callback: (requests: AssetRequest[]) => void, onError: (error: any) => void) => {
+      const path = 'assetRequests';
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'));
+      return onSnapshot(q, (sn) => {
+        callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as AssetRequest[]);
+      }, (err) => {
+        handleFirestoreError(err, OperationType.GET, path);
+        onError(err);
+      });
+    },
+    subscribeByUser: (userId: string, callback: (requests: AssetRequest[]) => void, onError: (error: any) => void) => {
+      const path = 'assetRequests';
+      const q = query(collection(db, path), where('requesterId', '==', userId), orderBy('createdAt', 'desc'));
+      return onSnapshot(q, (sn) => {
+        callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as AssetRequest[]);
+      }, (err) => {
+        handleFirestoreError(err, OperationType.GET, path);
+        onError(err);
+      });
+    },
+    create: async (data: Omit<AssetRequest, 'id' | 'status' | 'createdAt'>): Promise<AssetRequest> => {
+      const path = 'assetRequests';
+      try {
+        const id = doc(collection(db, path)).id;
+        const docRef = doc(db, path, id);
+        await setDoc(docRef, {
+          ...data,
+          id,
+          status: 'Pending',
+          createdAt: serverTimestamp()
+        });
+        const newDoc = await getDoc(docRef);
+        const result = convertDoc({ id: newDoc.id, ...newDoc.data() }) as AssetRequest;
+        await logAction('Asset Request Created', `Request for ${data.quantity}x ${data.categoryName} by ${data.requesterName}`);
+        return result;
+      } catch (error) {
+        return handleFirestoreError(error, OperationType.CREATE, path);
+      }
+    },
+    approve: async (id: string, approvedQuantity: number, adminNotes: string): Promise<void> => {
+      const path = `assetRequests/${id}`;
+      try {
+        const docRef = doc(db, 'assetRequests', id);
+        
+        const user = auth.currentUser;
+        let adminName = 'Admin';
+        if (user) {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) adminName = userDoc.data()?.name;
+        }
+
+        await updateDoc(docRef, {
+          status: 'Approved',
+          approvedQuantity,
+          adminNotes,
+          reviewedBy: user?.uid,
+          reviewedByName: adminName,
+          reviewedAt: serverTimestamp()
+        });
+        
+        const reqDoc = await getDoc(docRef);
+        const reqData = reqDoc.data() as AssetRequest;
+        await logAction('Asset Request Approved', `Approved ${approvedQuantity}x ${reqData.categoryName} for ${reqData.requesterName}`);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      }
+    },
+    disapprove: async (id: string, adminNotes: string): Promise<void> => {
+      const path = `assetRequests/${id}`;
+      try {
+        const docRef = doc(db, 'assetRequests', id);
+        
+        const user = auth.currentUser;
+        let adminName = 'Admin';
+        if (user) {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) adminName = userDoc.data()?.name;
+        }
+
+        await updateDoc(docRef, {
+          status: 'Disapproved',
+          adminNotes,
+          reviewedBy: user?.uid,
+          reviewedByName: adminName,
+          reviewedAt: serverTimestamp()
+        });
+
+        const reqDoc = await getDoc(docRef);
+        const reqData = reqDoc.data() as AssetRequest;
+        await logAction('Asset Request Disapproved', `Disapproved request for ${reqData.categoryName} from ${reqData.requesterName}`);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      }
+    },
+    fulfill: async (id: string): Promise<void> => {
+      const path = `assetRequests/${id}`;
+      try {
+        const docRef = doc(db, 'assetRequests', id);
+        await updateDoc(docRef, {
+          status: 'Fulfilled'
+        });
+        const reqDoc = await getDoc(docRef);
+        const reqData = reqDoc.data() as AssetRequest;
+        await logAction('Asset Request Fulfilled', `Fulfilled request for ${reqData.categoryName} to ${reqData.requesterName}`);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, path);
       }
     }
   }

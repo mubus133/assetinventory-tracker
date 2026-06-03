@@ -14,7 +14,9 @@ import {
   X,
   Settings,
   ChevronRight,
-  Wrench
+  Wrench,
+  FilePlus,
+  CheckSquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { clsx, type ClassValue } from 'clsx';
@@ -42,6 +44,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['Admin', 'Staff', 'Store Officer', 'Management'] },
     { name: 'Asset Inventory', path: '/assets', icon: Package, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
+    { name: 'Request Asset', path: '/requests', icon: FilePlus, roles: ['Admin', 'Staff', 'Store Officer', 'Inventory Officer', 'Management'] },
+    { name: 'Approve Requests', path: '/request-approval', icon: CheckSquare, roles: ['Admin'] },
     { name: 'Maintenance', path: '/maintenance', icon: Wrench, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
     { name: 'Allocations', path: '/allocations', icon: ArrowLeftRight, roles: ['Admin', 'Store Officer'] },
     { name: 'Return Log', path: '/return', icon: ArrowLeftRight, roles: ['Admin', 'Store Officer'] },

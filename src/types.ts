@@ -64,3 +64,24 @@ export interface AuditLog {
   details: string;
   timestamp: string;
 }
+
+export type RequestStatus = 'Pending' | 'Approved' | 'Disapproved' | 'Fulfilled';
+
+export interface AssetRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  departmentId: string;
+  departmentName: string;
+  categoryId: string;
+  categoryName: string;
+  quantity: number;
+  reason: string;
+  status: RequestStatus;
+  approvedQuantity?: number;
+  adminNotes?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}

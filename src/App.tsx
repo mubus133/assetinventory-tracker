@@ -13,6 +13,8 @@ import { UserManagement } from './pages/UserManagement';
 import { AuditLog } from './pages/AuditLog';
 import { SystemSettings } from './pages/SystemSettings';
 import { Maintenance } from './pages/Maintenance';
+import { AssetRequestPage } from './pages/AssetRequest';
+import { RequestApproval } from './pages/RequestApproval';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -52,6 +54,18 @@ export default function App() {
           <Route path="/allocations" element={
             <ProtectedRoute>
               <AssetAllocation />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/requests" element={
+            <ProtectedRoute>
+              <AssetRequestPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/request-approval" element={
+            <ProtectedRoute>
+              <RequestApproval />
             </ProtectedRoute>
           } />
 
