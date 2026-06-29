@@ -26,7 +26,7 @@ export interface Category {
   name: string;
 }
 
-export type AssetStatus = 'Available' | 'Allocated' | 'Maintenance' | 'Disposed';
+export type AssetStatus = 'Available' | 'Allocated' | 'Maintenance' | 'Disposed' | 'In Transit' | 'Pending Release';
 
 export type AssetCondition = 'Good' | 'Fair' | 'Damaged' | 'Lost';
 
@@ -65,7 +65,7 @@ export interface AuditLog {
   timestamp: string;
 }
 
-export type RequestStatus = 'Pending' | 'Approved' | 'Disapproved' | 'Fulfilled';
+export type RequestStatus = 'Pending' | 'Approved' | 'Disapproved' | 'Fulfilled' | 'Acknowledged' | 'Released';
 
 export interface AssetRequest {
   id: string;
@@ -83,5 +83,62 @@ export interface AssetRequest {
   reviewedBy?: string;
   reviewedByName?: string;
   reviewedAt?: string;
+  createdAt: string;
+}
+
+// NEW: Department Request Workflow Types
+export type DeptRequestStatus = 'Pending' | 'Admin Approved' | 'Admin Rejected' | 'Storekeeper Acknowledged' | 'Assets Released' | 'Fulfilled';
+
+export interface DepartmentAssetRequest {
+  id: string;
+  requestingDepartmentId: string;
+  requestingDepartmentName: string;
+  requestedByUserId: string;
+  requestedByUserName: string;
+  requestedByUserRole: UserRole;
+  status: DeptRequestStatus;
+  items: DepartmentRequestItem[];
+  reason: string;
+  urgency: 'Low' | 'Medium' | 'High';
+  
+  // Admin approval workflow
+  adminApprovedAt?: string;
+  adminApprovedBy?: string;
+  adminApprovedByName?: string;
+  adminApprovalNotes?: string;
+  adminRejectionReason?: string;
+  
+  // Storekeeper acknowledgment workflow
+  storekeeperAcknowledgedAt?: string;
+  storekeeperAcknowledgedBy?: string;
+  storekeeperAcknowledgedByName?: string;
+  storekeeperAcknowledgmentNotes?: string;
+  
+  // Asset release workflow
+  releasedAt?: string;
+  releasedBy?: string;
+  releasedByName?: string;
+  releaseNotes?: string;
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DepartmentRequestItem {
+  assetCategoryId: string;
+  assetCategoryName: string;
+  quantityRequested: number;
+  quantityApproved?: number;
+  quantityReleased?: number;
+  selectedAssetIds?: string[]; // IDs of assets selected by storekeeper
+  itemNotes?: string;
+}
+
+export interface DepartmentRequestNotification {
+  id: string;
+  userId: string;
+  departmentRequestId: string;
+  type: 'NEW_REQUEST' | 'APPROVAL_NEEDED' | 'REQUEST_APPROVED' | 'REQUEST_REJECTED' | 'READY_FOR_PICKUP' | 'ASSETS_RELEASED';
+  isRead: boolean;
   createdAt: string;
 }
