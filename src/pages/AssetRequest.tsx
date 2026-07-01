@@ -33,6 +33,7 @@ export const AssetRequestPage: React.FC = () => {
   const [items, setItems] = useState<DraftItem[]>([{ categoryId: '', quantity: 1, notes: '' }]);
   const [reason, setReason] = useState('');
   const [urgency, setUrgency] = useState<'Low' | 'Medium' | 'High'>('Medium');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -48,7 +49,7 @@ export const AssetRequestPage: React.FC = () => {
         unsubCats = api.metadata.subscribeCategories(setCategories, console.error);
         unsubDepts = api.metadata.subscribeDepartments(setDepartments, console.error);
         unsubAssets = api.assets.subscribe(setAssets, console.error);
-        unsubReqs = departmentRequestApi.subscribeByDepartment(user.departmentId, setRequests, console.error);
+        unsubReqs = departmentRequestApi.subscribeByRequester(user.id, setRequests, console.error);
       } finally {
         setLoading(false);
       }
@@ -63,10 +64,15 @@ export const AssetRequestPage: React.FC = () => {
     };
   }, [user]);
 
-  const departmentName = useMemo(() => {
-    if (!user) return '';
-    return departments.find((department) => department.id === user.departmentId)?.name || user.departmentId;
-  }, [departments, user]);
+  useEffect(() => {
+    if (user && !selectedDepartmentId) {
+      setSelectedDepartmentId(user.departmentId);
+    }
+  }, [selectedDepartmentId, user]);
+
+  const selectedDepartmentName = useMemo(() => {
+    return departments.find((department) => department.id === selectedDepartmentId)?.name || selectedDepartmentId;
+  }, [departments, selectedDepartmentId]);
 
   const availableByCategory = useMemo(() => {
     return categories.map((category) => ({
@@ -79,11 +85,12 @@ export const AssetRequestPage: React.FC = () => {
     setItems([{ categoryId: '', quantity: 1, notes: '' }]);
     setReason('');
     setUrgency('Medium');
+    setSelectedDepartmentId(user?.departmentId || '');
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!user || !reason.trim()) return;
+    if (!user || !reason.trim() || !selectedDepartmentId) return;
 
     const requestItems = items
       .filter((item) => item.categoryId && item.quantity > 0)
@@ -105,8 +112,8 @@ export const AssetRequestPage: React.FC = () => {
     setSubmitting(true);
     try {
       await departmentRequestApi.create({
-        requestingDepartmentId: user.departmentId,
-        requestingDepartmentName: departmentName,
+        requestingDepartmentId: selectedDepartmentId,
+        requestingDepartmentName: selectedDepartmentName,
         requestedByUserId: user.id,
         requestedByUserName: user.name,
         requestedByUserRole: user.role,
@@ -133,7 +140,7 @@ export const AssetRequestPage: React.FC = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="page-title">
           <h1 className="text-2xl font-bold text-text-primary">Department Asset Requests</h1>
-          <p className="text-text-secondary text-sm">View available assets and request items for {departmentName || 'your department'}.</p>
+          <p className="text-text-secondary text-sm">View available assets and submit requests to departments configured by admin.</p>
         </div>
         <button onClick={() => setIsModalOpen(true)} className="btn-accent flex items-center justify-center gap-2">
           <Plus size={18} />
@@ -158,12 +165,13 @@ export const AssetRequestPage: React.FC = () => {
       </div>
 
       <div className="bg-bg-card p-6 rounded-xl border border-border shadow-sm">
-        <h2 className="text-sm font-bold text-text-primary uppercase tracking-widest mb-4">My Department Requests</h2>
+        <h2 className="text-sm font-bold text-text-primary uppercase tracking-widest mb-4">My Submitted Requests</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white/5 border-b border-border">
                 <th className="px-6 py-4 text-[10px] font-bold text-text-secondary uppercase tracking-widest">Date</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-text-secondary uppercase tracking-widest">Department</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-text-secondary uppercase tracking-widest">Items</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-text-secondary uppercase tracking-widest">Urgency</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-text-secondary uppercase tracking-widest">Status</th>
@@ -172,14 +180,17 @@ export const AssetRequestPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-text-secondary">Loading requests...</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-text-secondary">Loading requests...</td></tr>
               ) : requests.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-text-secondary italic">No department requests yet.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-text-secondary italic">No department requests yet.</td></tr>
               ) : (
                 requests.map((request) => (
                   <tr key={request.id} className="hover:bg-white/5 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
                       {request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Just now'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">
+                      {request.requestingDepartmentName}
                     </td>
                     <td className="px-6 py-4 text-sm text-text-primary">
                       {request.items.map((item) => `${item.assetCategoryName} x${item.quantityRequested}`).join(', ')}
@@ -219,7 +230,12 @@ export const AssetRequestPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest block">Department</label>
-                  <input value={departmentName} readOnly className="w-full px-4 py-2.5 bg-bg-deep border border-border rounded-lg text-sm text-text-primary" />
+                  <select required value={selectedDepartmentId} onChange={(event) => setSelectedDepartmentId(event.target.value)} className="w-full px-4 py-2.5 bg-bg-deep border border-border rounded-lg outline-none text-sm text-text-primary focus:border-accent">
+                    <option value="">Select department...</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>{department.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest block">Urgency</label>

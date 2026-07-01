@@ -66,7 +66,7 @@ export const departmentRequestApi = {
     return onSnapshot(q, (sn) => {
       callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]);
     }, (err) => {
-      handleFirestoreError(err, OperationType.GET, path);
+      console.error('Department request subscription failed:', err);
       onError(err);
     });
   },
@@ -81,7 +81,22 @@ export const departmentRequestApi = {
     return onSnapshot(q, (sn) => {
       callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
     }, (err) => {
-      handleFirestoreError(err, OperationType.GET, path);
+      console.error('Department request subscription failed:', err);
+      onError(err);
+    });
+  },
+
+  // SUBSCRIBE to requests created by a specific requester
+  subscribeByRequester: (requesterId: string, callback: (requests: DepartmentAssetRequest[]) => void, onError: (error: any) => void) => {
+    const path = 'departmentRequests';
+    const q = query(
+      collection(db, path),
+      where('requestedByUserId', '==', requesterId)
+    );
+    return onSnapshot(q, (sn) => {
+      callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
+    }, (err) => {
+      console.error('Department request subscription failed:', err);
       onError(err);
     });
   },
@@ -96,7 +111,7 @@ export const departmentRequestApi = {
     return onSnapshot(q, (sn) => {
       callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
     }, (err) => {
-      handleFirestoreError(err, OperationType.GET, path);
+      console.error('Department request subscription failed:', err);
       onError(err);
     });
   },
