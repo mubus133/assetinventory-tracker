@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Package, 
-  ArrowLeftRight, 
-  CheckCircle2, 
-  AlertCircle,
-  TrendingUp,
-  Clock
-} from 'lucide-react';
+import { TrendingUp, Clock } from 'lucide-react';
 import { api } from '../services/api';
 import { Asset, AuditLog } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -19,8 +12,6 @@ import {
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  PieChart,
-  Pie
 } from 'recharts';
 
 export const Dashboard: React.FC = () => {
@@ -122,8 +113,8 @@ export const Dashboard: React.FC = () => {
               Assets by Category
             </h2>
           </div>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] min-h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height={300} minWidth={0}>
               <BarChart data={categoryData.length > 0 ? categoryData : [{ name: 'No Data', value: 0 }]}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 10 }} />

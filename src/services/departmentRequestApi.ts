@@ -17,6 +17,8 @@ import { db, auth } from '../firebase';
 import { DepartmentAssetRequest, DeptRequestStatus } from '../types';
 import { convertDoc, handleFirestoreError, OperationType } from './api';
 
+const DEPARTMENT_REQUEST_COLLECTION = 'assetRequests';
+
 const logAction = async (action: string, details: string) => {
   const user = auth.currentUser;
   if (!user) return;
@@ -46,14 +48,26 @@ const sortByCreatedAtDesc = (requests: DepartmentAssetRequest[]) => {
   });
 };
 
+const isDepartmentRequest = (request: any): request is DepartmentAssetRequest => {
+  return Array.isArray(request.items) &&
+    typeof request.requestedByUserId === 'string' &&
+    typeof request.requestingDepartmentId === 'string';
+};
+
+const convertDepartmentRequestDocs = (docs: any[]) => {
+  return docs
+    .map(d => convertDoc({ id: d.id, ...d.data() }))
+    .filter(isDepartmentRequest);
+};
+
 export const departmentRequestApi = {
   // LIST all department requests
   list: async (): Promise<DepartmentAssetRequest[]> => {
-    const path = 'departmentRequests';
+    const path = DEPARTMENT_REQUEST_COLLECTION;
     try {
       const q = query(collection(db, path), orderBy('createdAt', 'desc'));
       const sn = await getDocs(q);
-      return sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[];
+      return convertDepartmentRequestDocs(sn.docs);
     } catch (error) {
       return handleFirestoreError(error, OperationType.LIST, path);
     }
@@ -61,10 +75,10 @@ export const departmentRequestApi = {
 
   // SUBSCRIBE to all department requests (real-time)
   subscribe: (callback: (requests: DepartmentAssetRequest[]) => void, onError: (error: any) => void) => {
-    const path = 'departmentRequests';
+    const path = DEPARTMENT_REQUEST_COLLECTION;
     const q = query(collection(db, path), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (sn) => {
-      callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]);
+      callback(convertDepartmentRequestDocs(sn.docs));
     }, (err) => {
       console.error('Department request subscription failed:', err);
       onError(err);
@@ -73,13 +87,13 @@ export const departmentRequestApi = {
 
   // SUBSCRIBE to department requests by specific department
   subscribeByDepartment: (departmentId: string, callback: (requests: DepartmentAssetRequest[]) => void, onError: (error: any) => void) => {
-    const path = 'departmentRequests';
+    const path = DEPARTMENT_REQUEST_COLLECTION;
     const q = query(
       collection(db, path),
       where('requestingDepartmentId', '==', departmentId)
     );
     return onSnapshot(q, (sn) => {
-      callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
+      callback(sortByCreatedAtDesc(convertDepartmentRequestDocs(sn.docs)));
     }, (err) => {
       console.error('Department request subscription failed:', err);
       onError(err);
@@ -88,13 +102,13 @@ export const departmentRequestApi = {
 
   // SUBSCRIBE to requests created by a specific requester
   subscribeByRequester: (requesterId: string, callback: (requests: DepartmentAssetRequest[]) => void, onError: (error: any) => void) => {
-    const path = 'departmentRequests';
+    const path = DEPARTMENT_REQUEST_COLLECTION;
     const q = query(
       collection(db, path),
       where('requestedByUserId', '==', requesterId)
     );
     return onSnapshot(q, (sn) => {
-      callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
+      callback(sortByCreatedAtDesc(convertDepartmentRequestDocs(sn.docs)));
     }, (err) => {
       console.error('Department request subscription failed:', err);
       onError(err);
@@ -103,13 +117,13 @@ export const departmentRequestApi = {
 
   // SUBSCRIBE to requests by status (for Admin and Storekeeper dashboards)
   subscribeByStatus: (status: DeptRequestStatus, callback: (requests: DepartmentAssetRequest[]) => void, onError: (error: any) => void) => {
-    const path = 'departmentRequests';
+    const path = DEPARTMENT_REQUEST_COLLECTION;
     const q = query(
       collection(db, path),
       where('status', '==', status)
     );
     return onSnapshot(q, (sn) => {
-      callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
+      callback(sortByCreatedAtDesc(convertDepartmentRequestDocs(sn.docs)));
     }, (err) => {
       console.error('Department request subscription failed:', err);
       onError(err);
@@ -118,7 +132,7 @@ export const departmentRequestApi = {
 
   // CREATE a new department request
   create: async (data: Omit<DepartmentAssetRequest, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<DepartmentAssetRequest> => {
-    const path = 'departmentRequests';
+    const path = DEPARTMENT_REQUEST_COLLECTION;
     try {
       const id = doc(collection(db, path)).id;
       const docRef = doc(db, path, id);
@@ -154,9 +168,9 @@ export const departmentRequestApi = {
     approvalNotes: string,
     itemApprovals: Array<{ index: number; quantityApproved: number }>
   ): Promise<void> => {
-    const path = `departmentRequests/${requestId}`;
+    const path = `${DEPARTMENT_REQUEST_COLLECTION}/${requestId}`;
     try {
-      const docRef = doc(db, 'departmentRequests', requestId);
+      const docRef = doc(db, DEPARTMENT_REQUEST_COLLECTION, requestId);
       const reqDoc = await getDoc(docRef);
 
       if (!reqDoc.exists()) throw new Error('Request not found');
@@ -199,9 +213,9 @@ export const departmentRequestApi = {
 
   // ADMIN: Reject a department request
   adminReject: async (requestId: string, rejectionReason: string): Promise<void> => {
-    const path = `departmentRequests/${requestId}`;
+    const path = `${DEPARTMENT_REQUEST_COLLECTION}/${requestId}`;
     try {
-      const docRef = doc(db, 'departmentRequests', requestId);
+      const docRef = doc(db, DEPARTMENT_REQUEST_COLLECTION, requestId);
       const reqDoc = await getDoc(docRef);
 
       if (!reqDoc.exists()) throw new Error('Request not found');
@@ -233,9 +247,9 @@ export const departmentRequestApi = {
 
   // STOREKEEPER: Acknowledge approved request
   storekeeperAcknowledge: async (requestId: string, acknowledgmentNotes: string): Promise<void> => {
-    const path = `departmentRequests/${requestId}`;
+    const path = `${DEPARTMENT_REQUEST_COLLECTION}/${requestId}`;
     try {
-      const docRef = doc(db, 'departmentRequests', requestId);
+      const docRef = doc(db, DEPARTMENT_REQUEST_COLLECTION, requestId);
       const reqDoc = await getDoc(docRef);
 
       if (!reqDoc.exists()) throw new Error('Request not found');
@@ -276,9 +290,9 @@ export const departmentRequestApi = {
     releaseNotes: string,
     assetSelections: Array<{ itemIndex: number; selectedAssetIds: string[] }>
   ): Promise<void> => {
-    const path = `departmentRequests/${requestId}`;
+    const path = `${DEPARTMENT_REQUEST_COLLECTION}/${requestId}`;
     try {
-      const docRef = doc(db, 'departmentRequests', requestId);
+      const docRef = doc(db, DEPARTMENT_REQUEST_COLLECTION, requestId);
       const reqDoc = await getDoc(docRef);
 
       if (!reqDoc.exists()) throw new Error('Request not found');
@@ -337,9 +351,9 @@ export const departmentRequestApi = {
 
   // Mark request as fulfilled after department receives assets
   markFulfilled: async (requestId: string): Promise<void> => {
-    const path = `departmentRequests/${requestId}`;
+    const path = `${DEPARTMENT_REQUEST_COLLECTION}/${requestId}`;
     try {
-      const docRef = doc(db, 'departmentRequests', requestId);
+      const docRef = doc(db, DEPARTMENT_REQUEST_COLLECTION, requestId);
       const reqDoc = await getDoc(docRef);
 
       if (!reqDoc.exists()) throw new Error('Request not found');
@@ -378,14 +392,14 @@ export const departmentRequestApi = {
   // Get request details
   getById: async (requestId: string): Promise<DepartmentAssetRequest | null> => {
     try {
-      const docRef = doc(db, 'departmentRequests', requestId);
+      const docRef = doc(db, DEPARTMENT_REQUEST_COLLECTION, requestId);
       const docSnap = await getDoc(docRef);
 
       if (!docSnap.exists()) return null;
 
       return convertDoc({ id: docSnap.id, ...docSnap.data() }) as DepartmentAssetRequest;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'departmentRequests');
+      handleFirestoreError(error, OperationType.GET, DEPARTMENT_REQUEST_COLLECTION);
     }
   }
 };
