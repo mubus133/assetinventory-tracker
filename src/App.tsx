@@ -15,9 +15,10 @@ import { SystemSettings } from './pages/SystemSettings';
 import { Maintenance } from './pages/Maintenance';
 import { AssetRequestPage } from './pages/AssetRequest';
 import { RequestApproval } from './pages/RequestApproval';
+import type { UserRole } from './types';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: UserRole[] }> = ({ children, roles }) => {
+  const { isAuthenticated, loading, user } = useAuth();
   
   if (loading) {
     return (
@@ -28,6 +29,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
   
   if (!isAuthenticated) return <Navigate to="/login" />;
+  if (roles && (!user || !roles.includes(user.role))) return <Navigate to="/" />;
   return <Layout>{children}</Layout>;
 };
 
@@ -52,7 +54,7 @@ export default function App() {
           } />
 
           <Route path="/allocations" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin', 'Store Officer']}>
               <AssetAllocation />
             </ProtectedRoute>
           } />
@@ -64,19 +66,19 @@ export default function App() {
           } />
 
           <Route path="/request-approval" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin', 'Store Officer', 'Inventory Officer']}>
               <RequestApproval />
             </ProtectedRoute>
           } />
 
           <Route path="/return" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin', 'Store Officer']}>
               <AssetReturn />
             </ProtectedRoute>
           } />
 
           <Route path="/maintenance" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin', 'Store Officer', 'Inventory Officer']}>
               <Maintenance />
             </ProtectedRoute>
           } />
@@ -88,25 +90,25 @@ export default function App() {
           } />
 
           <Route path="/reports" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin', 'Management']}>
               <Reports />
             </ProtectedRoute>
           } />
 
           <Route path="/users" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin']}>
               <UserManagement />
             </ProtectedRoute>
           } />
 
           <Route path="/audit" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin']}>
               <AuditLog />
             </ProtectedRoute>
           } />
 
           <Route path="/settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['Admin']}>
               <SystemSettings />
             </ProtectedRoute>
           } />

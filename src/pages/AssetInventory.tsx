@@ -17,8 +17,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import { Asset, Category, Department } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export const AssetInventory: React.FC = () => {
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -35,6 +37,7 @@ export const AssetInventory: React.FC = () => {
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [damageCondition, setDamageCondition] = useState<'Good' | 'Fair' | 'Damaged' | 'Lost'>('Damaged');
   const [damageNotes, setDamageNotes] = useState('');
+  const canManageAssets = user?.role === 'Admin' || user?.role === 'Store Officer' || user?.role === 'Inventory Officer';
   
   // Form State
   const [formData, setFormData] = useState({
@@ -219,13 +222,15 @@ export const AssetInventory: React.FC = () => {
           <h1 className="text-2xl font-bold text-text-primary">Asset Inventory</h1>
           <p className="text-text-secondary text-sm">Manage and track all institutional assets.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="btn-accent flex items-center gap-2"
-        >
-          <Plus size={18} />
-          New Registration
-        </button>
+        {canManageAssets && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="btn-accent flex items-center gap-2"
+          >
+            <Plus size={18} />
+            New Registration
+          </button>
+        )}
       </div>
 
       {/* Filters & Search */}
@@ -266,14 +271,14 @@ export const AssetInventory: React.FC = () => {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-text-secondary">
+                  <td colSpan={7} className="px-6 py-12 text-center text-text-secondary">
                     <Loader2 className="animate-spin mx-auto mb-2" size={24} />
                     Loading inventory...
                   </td>
                 </tr>
               ) : filteredAssets.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-text-secondary italic text-sm">
+                  <td colSpan={7} className="px-6 py-12 text-center text-text-secondary italic text-sm">
                     No assets found matching your criteria.
                   </td>
                 </tr>
@@ -331,25 +336,31 @@ export const AssetInventory: React.FC = () => {
                         >
                           <ExternalLink size={14} />
                         </button>
-                        <button 
-                          onClick={() => handleReportDamage(asset)}
-                          className="p-1.5 hover:bg-red-500/10 rounded text-text-secondary hover:text-red-400"
-                          title="Report Damage"
-                        >
-                          <Wrench size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleEdit(asset)}
-                          className="p-1.5 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteClick(asset.id)}
-                          className="p-1.5 hover:bg-red-500/10 rounded text-red-400"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {canManageAssets && (
+                          <>
+                            <button
+                              onClick={() => handleReportDamage(asset)}
+                              className="p-1.5 hover:bg-red-500/10 rounded text-text-secondary hover:text-red-400"
+                              title="Report Damage"
+                            >
+                              <Wrench size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(asset)}
+                              className="p-1.5 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            {user?.role === 'Admin' && (
+                              <button
+                                onClick={() => handleDeleteClick(asset.id)}
+                                className="p-1.5 hover:bg-red-500/10 rounded text-red-400"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -549,16 +560,18 @@ export const AssetInventory: React.FC = () => {
                   <QrCode size={16} />
                   Print QR Tag
                 </button>
-                <button 
-                  onClick={() => {
-                    setIsDetailsModalOpen(false);
-                    handleEdit(selectedAsset);
-                  }}
-                  className="px-4 py-2 bg-bg-deep border border-border rounded-lg text-xs font-bold text-text-secondary uppercase tracking-widest hover:text-text-primary transition-all flex items-center gap-2"
-                >
-                  <Edit2 size={16} />
-                  Modify Asset
-                </button>
+                {canManageAssets && (
+                  <button
+                    onClick={() => {
+                      setIsDetailsModalOpen(false);
+                      handleEdit(selectedAsset);
+                    }}
+                    className="px-4 py-2 bg-bg-deep border border-border rounded-lg text-xs font-bold text-text-secondary uppercase tracking-widest hover:text-text-primary transition-all flex items-center gap-2"
+                  >
+                    <Edit2 size={16} />
+                    Modify Asset
+                  </button>
+                )}
               </div>
             </div>
           </div>

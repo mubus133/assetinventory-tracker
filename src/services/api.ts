@@ -77,10 +77,14 @@ export const convertDoc = (d: any) => ({
   ...d,
   id: d.id,
   createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate().toISOString() : d.createdAt,
+  updatedAt: d.updatedAt instanceof Timestamp ? d.updatedAt.toDate().toISOString() : d.updatedAt,
   purchaseDate: d.purchaseDate instanceof Timestamp ? d.purchaseDate.toDate().toISOString() : d.purchaseDate,
   allocationDate: d.allocationDate instanceof Timestamp ? d.allocationDate.toDate().toISOString() : d.allocationDate,
   returnDate: d.returnDate instanceof Timestamp ? d.returnDate.toDate().toISOString() : d.returnDate,
   timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
+  adminApprovedAt: d.adminApprovedAt instanceof Timestamp ? d.adminApprovedAt.toDate().toISOString() : d.adminApprovedAt,
+  storekeeperAcknowledgedAt: d.storekeeperAcknowledgedAt instanceof Timestamp ? d.storekeeperAcknowledgedAt.toDate().toISOString() : d.storekeeperAcknowledgedAt,
+  releasedAt: d.releasedAt instanceof Timestamp ? d.releasedAt.toDate().toISOString() : d.releasedAt,
 });
 
 const logAction = async (action: string, details: string) => {

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Asset, AuditLog } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { 
   BarChart, 
   Bar, 
@@ -23,6 +24,7 @@ import {
 } from 'recharts';
 
 export const Dashboard: React.FC = () => {
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,13 +35,16 @@ export const Dashboard: React.FC = () => {
 
     const setupSubscriptions = async () => {
       try {
-        // Auto-seed basic data (ICT dept, Laptops, etc.) if database is empty
-        await api.metadata.seedDatabase();
+        if (user?.role === 'Admin') {
+          await api.metadata.seedDatabase();
+        }
+
+        const canReadAuditLogs = user?.role === 'Admin' || user?.role === 'Management';
 
         // Initial fetch for immediate display
         const [assetsData, logsData] = await Promise.all([
           api.assets.list(),
-          api.metadata.auditLogs()
+          canReadAuditLogs ? api.metadata.auditLogs() : Promise.resolve([])
         ]);
         setAssets(assetsData);
         setAuditLogs(logsData.slice(0, 5));
@@ -50,9 +55,11 @@ export const Dashboard: React.FC = () => {
           setAssets(updatedAssets);
         }, (err) => console.error('Asset subscription error:', err));
 
-        unsubscribeLogs = api.metadata.subscribeLogs((updatedLogs) => {
-          setAuditLogs(updatedLogs.slice(0, 5));
-        }, (err) => console.error('Log subscription error:', err));
+        if (canReadAuditLogs) {
+          unsubscribeLogs = api.metadata.subscribeLogs((updatedLogs) => {
+            setAuditLogs(updatedLogs.slice(0, 5));
+          }, (err) => console.error('Log subscription error:', err));
+        }
       } catch (err) {
         console.error('Failed to fetch dashboard data', err);
         setLoading(false);
@@ -65,7 +72,7 @@ export const Dashboard: React.FC = () => {
       if (unsubscribeAssets) unsubscribeAssets();
       if (unsubscribeLogs) unsubscribeLogs();
     };
-  }, []);
+  }, [user]);
 
   const stats = [
     { name: 'Total Institutional Assets', value: assets.length, trend: '+12 added this week', color: 'text-text-primary' },

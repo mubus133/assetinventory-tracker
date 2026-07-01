@@ -42,10 +42,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['Admin', 'Staff', 'Store Officer', 'Management'] },
-    { name: 'Asset Inventory', path: '/assets', icon: Package, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
-    { name: 'Request Asset', path: '/requests', icon: FilePlus, roles: ['Admin', 'Staff', 'Store Officer', 'Inventory Officer', 'Management'] },
-    { name: 'Approve Requests', path: '/request-approval', icon: CheckSquare, roles: ['Admin'] },
+    { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['Admin', 'Staff', 'Store Officer', 'Department Staff', 'Inventory Officer', 'Management'] },
+    { name: 'Asset Inventory', path: '/assets', icon: Package, roles: ['Admin', 'Staff', 'Store Officer', 'Department Staff', 'Inventory Officer', 'Management'] },
+    { name: 'Request Asset', path: '/requests', icon: FilePlus, roles: ['Admin', 'Staff', 'Store Officer', 'Department Staff', 'Inventory Officer', 'Management'] },
+    { name: 'Approve Requests', path: '/request-approval', icon: CheckSquare, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
     { name: 'Maintenance', path: '/maintenance', icon: Wrench, roles: ['Admin', 'Store Officer', 'Inventory Officer'] },
     { name: 'Allocations', path: '/allocations', icon: ArrowLeftRight, roles: ['Admin', 'Store Officer'] },
     { name: 'Return Log', path: '/return', icon: ArrowLeftRight, roles: ['Admin', 'Store Officer'] },

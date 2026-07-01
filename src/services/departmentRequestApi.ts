@@ -3,7 +3,6 @@ import {
   getDocs,
   addDoc,
   updateDoc,
-  deleteDoc,
   doc,
   query,
   where,
@@ -15,7 +14,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { DepartmentAssetRequest, DepartmentRequestItem, DeptRequestStatus } from '../types';
+import { DepartmentAssetRequest, DeptRequestStatus } from '../types';
 import { convertDoc, handleFirestoreError, OperationType } from './api';
 
 const logAction = async (action: string, details: string) => {
@@ -37,6 +36,14 @@ const logAction = async (action: string, details: string) => {
   } catch (error) {
     console.error('Audit Logging Failed:', error);
   }
+};
+
+const sortByCreatedAtDesc = (requests: DepartmentAssetRequest[]) => {
+  return [...requests].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
 };
 
 export const departmentRequestApi = {
@@ -69,11 +76,10 @@ export const departmentRequestApi = {
     const path = 'departmentRequests';
     const q = query(
       collection(db, path),
-      where('requestingDepartmentId', '==', departmentId),
-      orderBy('createdAt', 'desc')
+      where('requestingDepartmentId', '==', departmentId)
     );
     return onSnapshot(q, (sn) => {
-      callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]);
+      callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, path);
       onError(err);
@@ -85,11 +91,10 @@ export const departmentRequestApi = {
     const path = 'departmentRequests';
     const q = query(
       collection(db, path),
-      where('status', '==', status),
-      orderBy('createdAt', 'desc')
+      where('status', '==', status)
     );
     return onSnapshot(q, (sn) => {
-      callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]);
+      callback(sortByCreatedAtDesc(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as DepartmentAssetRequest[]));
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, path);
       onError(err);
@@ -105,9 +110,6 @@ export const departmentRequestApi = {
 
       const user = auth.currentUser;
       if (!user) throw new Error('User not authenticated');
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.data();
 
       await setDoc(docRef, {
         ...data,
@@ -288,6 +290,17 @@ export const departmentRequestApi = {
         };
       });
 
+      // Released assets become available to the requesting department immediately.
+      for (const selection of assetSelections) {
+        for (const assetId of selection.selectedAssetIds) {
+          const assetRef = doc(db, 'assets', assetId);
+          await updateDoc(assetRef, {
+            status: 'Available',
+            departmentId: reqData.requestingDepartmentId
+          });
+        }
+      }
+
       await updateDoc(docRef, {
         status: 'Assets Released',
         items: updatedItems,
@@ -297,16 +310,6 @@ export const departmentRequestApi = {
         releaseNotes: releaseNotes,
         updatedAt: serverTimestamp()
       });
-
-      // Update asset statuses to "In Transit"
-      for (const selection of assetSelections) {
-        for (const assetId of selection.selectedAssetIds) {
-          const assetRef = doc(db, 'assets', assetId);
-          await updateDoc(assetRef, {
-            status: 'In Transit'
-          });
-        }
-      }
 
       await logAction(
         'Assets Released by Storekeeper',

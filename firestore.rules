@@ -87,6 +87,12 @@ service cloud.firestore {
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Management', 'Inventory Officer', 'Store Officer']);
     }
 
+    function isStoreOrInventoryOfficer() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Store Officer', 'Inventory Officer'];
+    }
+
     // Validation Helpers
     function isValidEmail(email) {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
@@ -118,7 +124,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'assetId', 'name', 'categoryId', 'departmentId', 'status', 'purchaseDate', 'createdAt']) &&
              data.keys().hasOnly(['id', 'assetId', 'name', 'categoryId', 'departmentId', 'status', 'purchaseDate', 'createdAt', 'description', 'condition', 'lastMaintenanceDate']) &&
              isValidString(data.name, 2, 150) &&
-             data.status in ['Available', 'Allocated', 'Maintenance', 'Disposed'] &&
+             data.status in ['Available', 'Allocated', 'Maintenance', 'Disposed', 'In Transit', 'Pending Release'] &&
              (!('condition' in data) || data.condition in ['Good', 'Fair', 'Damaged', 'Lost']) &&
              isValidTimestamp(data.purchaseDate) &&
              isValidTimestamp(data.createdAt);
@@ -183,6 +189,16 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAdmin() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Department Request Workflow
+    match /departmentRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.requestedByUserId == request.auth.uid &&
+        request.resource.data.status == 'Pending';
+      allow update: if isAdmin() || isStoreOrInventoryOfficer();
       allow delete: if isAdmin();
     }
   }
