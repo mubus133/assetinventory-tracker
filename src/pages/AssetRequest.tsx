@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { Category, Asset, AssetRequest } from '../types';
+import { Category, Asset, AssetRequest, Department } from '../types';
 import { Plus, X, Loader2, Check, Clock, XCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -9,11 +9,13 @@ export const AssetRequestPage: React.FC = () => {
   const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [myRequests, setMyRequests] = useState<AssetRequest[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [requestFeedback, setRequestFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Form State
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
@@ -24,17 +26,20 @@ export const AssetRequestPage: React.FC = () => {
     let unsubCats: () => void;
     let unsubAssets: () => void;
     let unsubReqs: () => void;
+    let unsubDepts: () => void;
 
     const setup = async () => {
       setLoading(true);
       try {
         unsubCats = api.metadata.subscribeCategories(setCategories, () => {});
         unsubAssets = api.assets.subscribe(setAssets, () => {});
+        unsubDepts = api.metadata.subscribeDepartments(setDepartments, () => {});
+
         if (user) {
-          unsubReqs = api.requests.subscribeByUser(user.uid, setMyRequests, () => {});
+          unsubReqs = api.requests.subscribeByUser(user.id, setMyRequests, () => {});
         }
       } catch (err) {
-        console.error(err);
+        console.error('Asset request setup error:', err);
       } finally {
         setLoading(false);
       }
@@ -44,6 +49,7 @@ export const AssetRequestPage: React.FC = () => {
     return () => {
       if (unsubCats) unsubCats();
       if (unsubAssets) unsubAssets();
+      if (unsubDepts) unsubDepts();
       if (unsubReqs) unsubReqs();
     };
   }, [user]);
@@ -55,30 +61,56 @@ export const AssetRequestPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedCategoryId || !quantity || !reason) return;
-    
+    if (!user) {
+      toast.error('You must be signed in to submit a request.');
+      return;
+    }
+
     const category = categories.find(c => c.id === selectedCategoryId);
-    if (!category) return;
+    const department = departments.find(d => d.id === user.departmentId);
+
+    if (!category) {
+      toast.error('Please select a valid category.');
+      return;
+    }
+
+    if (!department) {
+      toast.error('Your department is not available. Please contact admin.');
+      return;
+    }
+
+    if (quantity <= 0) {
+      toast.error('Quantity must be at least 1.');
+      return;
+    }
+
+    if (!reason.trim()) {
+      toast.error('Please provide a reason for the request.');
+      return;
+    }
 
     setSubmitting(true);
+    setRequestFeedback(null);
     try {
       await api.requests.create({
         requesterId: user.id,
         requesterName: user.name,
         departmentId: user.departmentId,
-        departmentName: user.departmentId, // We should map this properly, but for now we'll just send the ID and fix it if possible
+        departmentName: department.name,
         categoryId: category.id,
         categoryName: category.name,
         quantity,
-        reason,
+        reason: reason.trim(),
       });
       toast.success('Asset request submitted successfully');
-      setIsModalOpen(false);
+      setRequestFeedback({ type: 'success', message: 'Request submitted successfully.' });
       setQuantity(1);
       setReason('');
       setSelectedCategoryId('');
     } catch (err) {
-      toast.error('Failed to submit request');
+      console.error('Request submission error:', err);
+      setRequestFeedback({ type: 'error', message: 'Failed to submit request. Please try again.' });
+      toast.error('Failed to submit request. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -210,6 +242,12 @@ export const AssetRequestPage: React.FC = () => {
                   className="w-full px-4 py-2.5 bg-bg-deep border border-border rounded-lg outline-none text-sm text-text-primary focus:border-accent transition-all font-medium resize-none"
                 />
               </div>
+
+              {requestFeedback && (
+                <div className={`rounded-xl px-4 py-3 text-sm font-medium ${requestFeedback.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'}`}>
+                  {requestFeedback.message}
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button 
