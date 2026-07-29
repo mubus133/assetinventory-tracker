@@ -125,10 +125,10 @@ export const Dashboard: React.FC = () => {
                   contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#064e3b' }}
                   itemStyle={{ color: '#064e3b' }}
                 />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {categoryData.map((entry, index) => (
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  {categoryData.length > 0 ? categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
+                  )) : <Cell fill={COLORS[0]} />}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

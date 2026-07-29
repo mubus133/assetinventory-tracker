@@ -36,7 +36,13 @@ export const AssetRequestPage: React.FC = () => {
         unsubDepts = api.metadata.subscribeDepartments(setDepartments, () => {});
 
         if (user) {
-          unsubReqs = api.requests.subscribeByUser(user.id, setMyRequests, () => {});
+          console.log('Setting up request subscription for user:', user.id, user.email);
+          unsubReqs = api.requests.subscribeByUser(user.id, (reqs) => {
+            console.log('Received requests for user:', user.id, 'count:', reqs.length, reqs);
+            setMyRequests(reqs);
+          }, (err) => {
+            console.error('Request subscription error:', err);
+          });
         }
       } catch (err) {
         console.error('Asset request setup error:', err);

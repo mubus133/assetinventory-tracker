@@ -7,7 +7,6 @@ import {
   deleteDoc, 
   doc, 
   query, 
-  where, 
   orderBy, 
   getDoc,
   Timestamp,
@@ -73,15 +72,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 // Convert Firestore timestamps to string dates for the UI
-export const convertDoc = (d: any) => ({
-  ...d,
-  id: d.id,
-  createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate().toISOString() : d.createdAt,
-  purchaseDate: d.purchaseDate instanceof Timestamp ? d.purchaseDate.toDate().toISOString() : d.purchaseDate,
-  allocationDate: d.allocationDate instanceof Timestamp ? d.allocationDate.toDate().toISOString() : d.allocationDate,
-  returnDate: d.returnDate instanceof Timestamp ? d.returnDate.toDate().toISOString() : d.returnDate,
-  timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
-});
+export const convertDoc = (d: any) => {
+  const { id: _id, ...rest } = d;
+  return {
+    ...rest,
+    id: d.id,
+    createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate().toISOString() : d.createdAt,
+    purchaseDate: d.purchaseDate instanceof Timestamp ? d.purchaseDate.toDate().toISOString() : d.purchaseDate,
+    allocationDate: d.allocationDate instanceof Timestamp ? d.allocationDate.toDate().toISOString() : d.allocationDate,
+    returnDate: d.returnDate instanceof Timestamp ? d.returnDate.toDate().toISOString() : d.returnDate,
+    timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
+  };
+};
 
 const logAction = async (action: string, details: string) => {
   const user = auth.currentUser;
@@ -594,17 +596,32 @@ export const api = {
     },
     subscribeByUser: (userId: string, callback: (requests: AssetRequest[]) => void, onError: (error: any) => void) => {
       const path = 'assetRequests';
-      const q = query(collection(db, path), where('requesterId', '==', userId), orderBy('createdAt', 'desc'));
+      console.log('subscribeByUser: querying', path, 'for userId:', userId);
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'));
       return onSnapshot(q, (sn) => {
-        callback(sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as AssetRequest[]);
+        const all = sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })) as AssetRequest[];
+        const filtered = all.filter(r => r.requesterId === userId);
+        console.log('subscribeByUser: total docs:', all.length, 'filtered for user:', filtered.length);
+        callback(filtered);
       }, (err) => {
+        console.error('subscribeByUser: onSnapshot error:', err);
         handleFirestoreError(err, OperationType.GET, path);
         onError(err);
       });
     },
+    listByUser: async (userId: string): Promise<AssetRequest[]> => {
+      const path = 'assetRequests';
+      try {
+        const sn = await getDocs(collection(db, path));
+        return sn.docs.map(d => convertDoc({ id: d.id, ...d.data() })).filter(r => r.requesterId === userId) as AssetRequest[];
+      } catch (error) {
+        return handleFirestoreError(error, OperationType.LIST, path);
+      }
+    },
     create: async (data: Omit<AssetRequest, 'id' | 'status' | 'createdAt'>): Promise<AssetRequest> => {
       const path = 'assetRequests';
       try {
+        console.log('Creating asset request with data:', data);
         const id = doc(collection(db, path)).id;
         const docRef = doc(db, path, id);
         await setDoc(docRef, {

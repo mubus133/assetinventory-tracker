@@ -51,7 +51,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
-            setUser({ ...userData, id: userDoc.id });
+            const userWithId = { ...userData, id: userDoc.id };
+            console.log('AuthContext: user loaded', userWithId.email, 'id:', userWithId.id, 'docId:', userDoc.id);
+            setUser(userWithId);
             setToken(await firebaseUser.getIdToken());
           } else {
             // User authenticated with Firebase but no record in Firestore (and not master admin)

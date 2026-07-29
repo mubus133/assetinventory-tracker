@@ -1,190 +1,68 @@
-// ===============================================================
-// Crescent University Asset Management Firestore Security Rules
-// ===============================================================
-//
-// This ruleset assumes a role-based access control system where:
-// - Admin: Full read/write access to all collections
-// - Management: Broad read access, limited write access to reports/assets
-// - Inventory/Store Officer: Can manage assets and allocations
-// - Staff/User: Can view their own allocations and profile
-//
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: users
-// Document ID: userId (auth.uid)
-// Fields:
-//   - id: string (required) - UUID
-//   - name: string (required, <100 chars) - Full name
-//   - email: string (required, format) - Institution email
-//   - role: string (required, enum) - Access level
-//   - departmentId: string (required) - Department reference
-//   - status: string (required, enum) - Active/Inactive
-//   - createdAt: timestamp (required) - User creation date
-//
-// Collection: assets
-// Document ID: random
-// Fields:
-//   - id: string (required)
-//   - assetId: string (required, unique) - Institutional ID
-//   - name: string (required, <150 chars) - Asset name
-//   - categoryId: string (required) - Category reference
-//   - departmentId: string (required) - Department reference
-//   - status: string (required, enum) - Lifecycle status
-//   - purchaseDate: timestamp (required) - Purchase date
-//   - description: string (optional, <1000 chars) - Details
-//   - createdAt: timestamp (required) - Record creation
-//
-// Collection: allocations
-// Document ID: random
-// Fields:
-//   - id: string (required)
-//   - assetId: string (required) - Asset reference
-//   - userId: string (required) - User reference
-//   - allocationDate: timestamp (required) - Start date
-//   - returnDate: timestamp (optional) - End date
-//   - status: string (required, enum) - Active/Returned
-//   - notes: string (optional, <500 chars) - Narrative
-//
-// ===============================================================
+rules_version = '2'
 
-rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // Role-based Access Control
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function hasRole(role) {
+      return isSignedIn() && getUserRole() == role;
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' || 
-         (request.auth.token.email == "mubarak@crescent.edu.ng") ||
-         (request.auth.token.email == "usmanmubarak5652@gmail.com" && request.auth.token.email_verified == true));
+      return isSignedIn() && getUserRole() == 'Admin';
     }
 
-    function isManagement() {
-      return isAuthenticated() && 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Management']);
-    }
-
-    function isStaff() {
-      return isAuthenticated() && 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Management', 'Inventory Officer', 'Store Officer']);
-    }
-
-    // Validation Helpers
-    function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-
-    function isValidTimestamp(val) {
-      return val is timestamp;
-    }
-
-    function isValidString(val, minLen, maxLen) {
-      return val is string && val.size() >= minLen && val.size() <= maxLen;
-    }
-
-    // ===============================================================
-    // Entity Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['id', 'name', 'email', 'role', 'departmentId', 'status', 'createdAt']) &&
-             data.keys().hasOnly(['id', 'name', 'email', 'role', 'departmentId', 'status', 'createdAt']) &&
-             isValidString(data.name, 2, 100) &&
-             isValidEmail(data.email) &&
-             data.role in ['Admin', 'Staff', 'Store Officer', 'Department Staff', 'Inventory Officer', 'Management'] &&
-             data.status in ['Active', 'Inactive'] &&
-             isValidTimestamp(data.createdAt);
-    }
-
-    function isValidAsset(data) {
-      return data.keys().hasAll(['id', 'assetId', 'name', 'categoryId', 'departmentId', 'status', 'purchaseDate', 'createdAt']) &&
-             data.keys().hasOnly(['id', 'assetId', 'name', 'categoryId', 'departmentId', 'status', 'purchaseDate', 'createdAt', 'description', 'condition', 'lastMaintenanceDate']) &&
-             isValidString(data.name, 2, 150) &&
-             data.status in ['Available', 'Allocated', 'Maintenance', 'Disposed'] &&
-             (!('condition' in data) || data.condition in ['Good', 'Fair', 'Damaged', 'Lost']) &&
-             isValidTimestamp(data.purchaseDate) &&
-             isValidTimestamp(data.createdAt);
-    }
-
-    function isValidAllocation(data) {
-      return data.keys().hasAll(['id', 'assetId', 'userId', 'allocationDate', 'status']) &&
-             data.keys().hasOnly(['id', 'assetId', 'userId', 'allocationDate', 'status', 'returnDate', 'notes', 'returnCondition', 'returnNotes']) &&
-             data.status in ['Active', 'Returned'] &&
-             (!('returnCondition' in data) || data.returnCondition in ['Good', 'Fair', 'Damaged', 'Lost']) &&
-             isValidTimestamp(data.allocationDate);
-    }
-
-    // ===============================================================
-    // Collection Rules
-    // ===============================================================
-
-    // Users Collection
-    match /users/{userId} {
-      allow read: if isAuthenticated(); // Broadly shared within the institution for assignment mapping
-      allow create: if isAdmin() && isValidUser(request.resource.data);
-      allow update: if (isAdmin() || isOwner(userId)) && 
-                      (isAdmin() || (isValidUser(request.resource.data) && request.resource.data.role == resource.data.role));
-      allow delete: if isAdmin();
-    }
-
-    // Assets Collection
-    match /assets/{assetId} {
-      allow read: if isAuthenticated();
-      allow create: if isStaff() && isValidAsset(request.resource.data);
-      allow update: if (isAdmin() || (isStaff() && isValidAsset(request.resource.data)));
-      allow delete: if isAdmin();
-    }
-
-    // Allocations Collection
-    match /allocations/{allocationId} {
-      allow read: if isAuthenticated();
-      allow create: if isStaff() && isValidAllocation(request.resource.data);
-      allow update: if (isAdmin() || (isStaff() && isValidAllocation(request.resource.data)));
-      allow delete: if isAdmin();
-    }
-
-    // Departments & Categories
-    match /departments/{deptId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /categories/{catId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Audit Logs
     match /auditLogs/{logId} {
-      allow read: if isManagement();
-      allow create: if isAuthenticated(); // Auto-generated by client operations
-      allow update, delete: if false; // Immutable logs
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
-    // Asset Requests
     match /assetRequests/{requestId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAdmin() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    match /assets/{assetId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /allocations/{allocationId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /departments/{deptId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /categories/{catId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /departmentRequests/{reqId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
   }
 }
-
